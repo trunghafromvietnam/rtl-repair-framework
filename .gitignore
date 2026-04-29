@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+.venv/
+
+# Environment
+.env
+.backup_path
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project artifacts
+benchmarks/*_prove/
+benchmarks/*_cover/
+benchmarks/*.sby
+benchmarks/*_props.sv
+benchmarks/*.v
+!benchmarks_buggy/*.v
+reports/
+logs/
+agents/silicon_brain.json
+*.csv
+
+# Backups
+_patches/

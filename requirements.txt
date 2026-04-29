@@ -1,0 +1,16 @@
+# --- Core AI Framework
+langchain>=0.3.0
+langgraph>=0.2.0
+langchain-google-genai>=2.0.0
+langchain-openai>=0.2.0
+python-dotenv>=1.0.1
+
+# --- Sandbox ---
+e2b-code-interpreter>=0.0.35
+
+# --- Hardware & Data Processing ---
+pyvcd>=0.4.0
+pandas>=2.2.0
+
+# --- Research & Debugging ---
+ipython>=8.21.0
