@@ -1,37 +1,44 @@
-# Python
+# ===== Python =====
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
+
+# ===== Virtual environments =====
 venv/
 env/
 .venv/
 
-# Environment
+# ===== Secrets =====
 .env
+.env.local
+*.key
 .backup_path
 
-# IDE
+# ===== IDE =====
 .vscode/
 .idea/
 *.swp
+*.swo
 
-# OS
+# ===== OS =====
 .DS_Store
 Thumbs.db
 
-# Project artifacts
+# ===== Project artifacts (regenerated each run) =====
 benchmarks/*_prove/
 benchmarks/*_cover/
 benchmarks/*.sby
 benchmarks/*_props.sv
 benchmarks/*.v
 !benchmarks_buggy/*.v
+
+# ===== Outputs =====
 reports/
 logs/
 agents/silicon_brain.json
 *.csv
 
-# Backups
+# ===== Patch staging =====
 _patches/
