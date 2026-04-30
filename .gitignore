@@ -1,44 +1,82 @@
-# ===== Python =====
+# Python
 __pycache__/
-*.py[cod]
-*$py.class
+*.pyc
+*.pyo
 *.so
-.Python
 
-# ===== Virtual environments =====
+# Virtual environments
 venv/
 env/
 .venv/
 
-# ===== Secrets =====
+# Secrets - NEVER commit these
 .env
 .env.local
 *.key
-.backup_path
+*.pem
 
-# ===== IDE =====
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# ===== OS =====
+# OS
 .DS_Store
 Thumbs.db
 
-# ===== Project artifacts (regenerated each run) =====
-benchmarks/*_prove/
-benchmarks/*_cover/
-benchmarks/*.sby
-benchmarks/*_props.sv
-benchmarks/*.v
-!benchmarks_buggy/*.v
+# SBY workdirs (regenerated each run)
+benchmarks/counter_prove/
+benchmarks/counter_cover/
+benchmarks/alu_prove/
+benchmarks/alu_cover/
+benchmarks/arbiter_prove/
+benchmarks/arbiter_cover/
+benchmarks/axi_lite_slave_prove/
+benchmarks/axi_lite_slave_cover/
+benchmarks/uart_tx_prove/
+benchmarks/uart_tx_cover/
+benchmarks/fifo_prove/
+benchmarks/fifo_cover/
 
-# ===== Outputs =====
+# SBY config files (regenerated)
+benchmarks/counter_prove.sby
+benchmarks/counter_cover.sby
+benchmarks/alu_prove.sby
+benchmarks/alu_cover.sby
+benchmarks/arbiter_prove.sby
+benchmarks/arbiter_cover.sby
+benchmarks/axi_lite_slave_prove.sby
+benchmarks/axi_lite_slave_cover.sby
+benchmarks/uart_tx_prove.sby
+benchmarks/uart_tx_cover.sby
+benchmarks/fifo_prove.sby
+benchmarks/fifo_cover.sby
+
+# Generated SVA properties (regenerated)
+benchmarks/counter_props.sv
+benchmarks/alu_props.sv
+benchmarks/arbiter_props.sv
+benchmarks/axi_lite_slave_props.sv
+benchmarks/uart_tx_props.sv
+benchmarks/fifo_props.sv
+
+# RTL files copied into benchmarks at runtime
+benchmarks/counter.v
+benchmarks/alu.v
+benchmarks/arbiter.v
+benchmarks/axi_lite_slave.v
+benchmarks/uart_tx.v
+benchmarks/fifo.v
+
+# Outputs
 reports/
 logs/
 agents/silicon_brain.json
 *.csv
 
-# ===== Patch staging =====
+# Patch staging
 _patches/
+
+# Backup paths
+.backup_path
