@@ -1,0 +1,44 @@
+[Router] SAFETY GUARD: formal_properties is empty or has no assertions. Refusing to call verifier (would yield a false PASS).
+[precheck] Stage A patches confirmed active.
+============================================================
+STAGE A SMOKE TEST: counter benchmark
+============================================================
+[System] Invoking LangGraph for counter...
+
+[Node: Contract] Extracting structural interface...
+[Node: Architect] Synthesizing Property IR from spec...
+[Architect] Compiled 4 properties.
+[Verifier] Running PROVE for counter.sby...
+
+[Node: Coder] Patching RTL (verifier iter 1)...
+[Node: Reviewer] Semantic alignment audit...
+[Orchestrator] Review passed.
+[Verifier] Running PROVE for counter.sby...
+
+[Node: Coder] Patching RTL (verifier iter 2)...
+[Node: Reviewer] Semantic alignment audit...
+
+[Node: Coder] Patching RTL (verifier iter 2)...
+[Node: Reviewer] Semantic alignment audit...
+[Orchestrator] Review passed.
+[Verifier] Running PROVE for counter.sby...
+[Orchestrator] Too many tool ERRORs. Terminating.
+
+============================================================
+RESULT SUMMARY
+============================================================
+Status:           ERROR
+Iterations:       3
+Review attempts:  3
+Has SVA:          True
+SVA length:       1226 chars
+
+============================================================
+STAGE A INVARIANT CHECKS
+============================================================
+  [PASS] Bug #1 (iter count bounded)              -- iters=3, max=10
+  [PASS] Bug #3 (SVA non-empty if not FATAL)      -- len(sva)=1226 status=ERROR
+  [PASS] Bug #4 (review_attempts is int)          -- type=int
+  [PASS] Bug #2 (single clk decl + past_valid)    -- clk_decls=1 past_valid=True
+
+All Stage A invariants hold.
