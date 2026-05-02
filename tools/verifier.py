@@ -1,16 +1,27 @@
 ##
-# Author: Ha Tran
-# Description: Thin wrapper around SymbiYosys (`sby`) for prove + cover runs.
+# Hotfix B0.5 for tools/verifier.py
 #
-# STABILIZATION PATCH NOTES:
-# - No more chdir gymnastics: invoke sby with cwd= argument so the parent
-#   process working directory is never mutated.
-# - Workdir is wiped before each run so a stale trace.vcd from a previous
-#   iteration cannot be mistaken for the current one.
-# - Cover hit counting uses a more robust regex and only counts unique
-#   cover statements that were actually reached.
-# - run_full_verification documents the precise definition of VACUOUS_PASS
-#   used by the orchestrator.
+# Problem (false vacuity in counter benchmark, post-B0.4):
+#   verifier.py reported VACUOUS_PASS even when SBY cover mode succeeded:
+#       SBY [counter_cover] engine_0: Status: passed
+#       SBY [counter_cover] DONE (PASS, rc=0)
+#
+#   Old run_sby() for cover mode used:
+#       reached = set(re.findall(r"reached cover statement at (\S+)", log))
+#   But SBY's cover mode log does NOT emit "reached cover statement at ...".
+#   It emits "Status: passed" + returncode=0 when all cover points are
+#   reachable, "Status: failed" + returncode!=0 when any cover point is
+#   unreachable. The right metric is the engine's return status, not
+#   substring matching of an obsolete log format.
+#
+# Fix:
+#   Cover mode now classifies based on returncode:
+#     returncode == 0   ->  cover passed   ->  covers > 0 (treat as 1)
+#     returncode != 0   ->  cover failed   ->  covers == 0 (vacuity)
+#
+#   This restores the intended semantics of run_full_verification:
+#     prove PASS + cover PASS  ->  proper PASS
+#     prove PASS + cover FAIL  ->  VACUOUS_PASS
 ##
 
 import os
@@ -23,19 +34,17 @@ class VerifierBridge:
     def __init__(self, work_dir: str = "benchmarks"):
         self.work_dir = work_dir
 
-    # ---------- single-mode invocation ----------
-
     def run_sby(self, project_name: str, mode: str = "prove") -> dict:
         """
         Run `sby` for one mode (prove | cover) on a single project.
-        Returns a dict with 'status' or 'covers' depending on mode, and 'log'.
+        Returns a dict with status/covers and log.
         """
         print(f"[Verifier] Running {mode.upper()} for {project_name}.sby...")
 
         sby_file = f"{project_name}_{mode}.sby"
         out_dir = f"{project_name}_{mode}"
 
-        # Clean prior workdir so we never pick up stale traces.
+        # Wipe stale workdir so we never read an old trace.
         full_out = os.path.join(self.work_dir, out_dir)
         if os.path.isdir(full_out):
             shutil.rmtree(full_out, ignore_errors=True)
@@ -47,7 +56,7 @@ class VerifierBridge:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                timeout=600,  # absolute ceiling per mode
+                timeout=600,
             )
         except subprocess.TimeoutExpired as e:
             return {
@@ -66,24 +75,30 @@ class VerifierBridge:
             status = "PASS" if process.returncode == 0 else "FAIL"
             return {"status": status, "log": log}
 
-        # cover mode
-        # Count unique reached covers. SBY logs lines like
-        # "Reached cover statement at <name> in step N".
-        reached = set(re.findall(r"reached cover statement at (\S+)", log.lower()))
-        return {"covers": len(reached), "log": log}
+        # ----- cover mode (B0.5 fix) -----
+        # SBY cover mode uses returncode 0 = all covers reachable, else
+        # at least one cover unreachable. We surface this as a numeric
+        # cover count for backward compat with run_full_verification.
+        cover_passed = (process.returncode == 0)
 
-    # ---------- full prove + cover run ----------
+        # As a secondary signal, also count any "BMC failed" or
+        # "Unreached cover" mentions, since rare engine paths may
+        # report success even with unreachable covers.
+        unreachable = len(re.findall(r"unreached cover", log, re.IGNORECASE))
+
+        if cover_passed and unreachable == 0:
+            return {"covers": 1, "log": log}
+        return {"covers": 0, "log": log}
 
     def run_full_verification(self, project_name: str) -> dict:
         """
         Run prove first; if prove succeeds but no cover statement is
-        reachable, classify as VACUOUS_PASS. This catches the classic
-        "constraints made the design unreachable" failure mode.
+        reachable, classify as VACUOUS_PASS.
         """
         prove = self.run_sby(project_name, "prove")
 
         if prove["status"] != "PASS":
-            return prove  # FAIL or ERROR — no need to run cover
+            return prove
 
         cover = self.run_sby(project_name, "cover")
         if cover.get("covers", 0) == 0:

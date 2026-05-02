@@ -1,0 +1,34 @@
+[Router] SAFETY GUARD: formal_properties is empty or has no assertions. Refusing to call verifier (would yield a false PASS).
+[precheck] Stage A patches confirmed active.
+============================================================
+STAGE A SMOKE TEST: counter benchmark
+============================================================
+[System] Invoking LangGraph for counter...
+
+[Node: Contract] Extracting structural interface...
+[Node: Architect] Synthesizing Property IR from spec...
+[Architect] Compiled 4 properties (0 dropped by validation).
+[Verifier] Running PROVE for counter.sby...
+[Verifier] Running COVER for counter.sby...
+[Verifier] PASS (iter 1)
+[Orchestrator] Verification PASSED.
+[Reporter] Sign-off report written: reports/signoff_counter.md
+
+============================================================
+RESULT SUMMARY
+============================================================
+Status:           PASS
+Iterations:       1
+Review attempts:  0
+Has SVA:          True
+SVA length:       1468 chars
+
+============================================================
+STAGE A INVARIANT CHECKS
+============================================================
+  [PASS] Bug #1 (iter count bounded)              -- iters=1, max=10
+  [PASS] Bug #3 (SVA non-empty if not FATAL)      -- len(sva)=1468 status=PASS
+  [PASS] Bug #4 (review_attempts is int)          -- type=int
+  [PASS] Bug #2 (single clk decl + past_valid)    -- clk_decls=1 past_valid=True
+
+All Stage A invariants hold.
