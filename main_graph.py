@@ -57,7 +57,7 @@ def route_after_architect(state: AgentState):
         print("[Router] Architect produced FATAL_ERROR. Terminating.")
         return END
 
-    if not _has_real_assertions(state.get("formal_properties", "")):
+    if not _has_real_assertions(state.get("current_verilog", "")):
         print(
             "[Router] SAFETY GUARD: formal_properties is empty or has no "
             "assertions. Refusing to call verifier (would yield a false PASS)."

@@ -1,0 +1,7 @@
+Project,Status,Iterations,Time(s),Vacuous
+counter,IR_READY,0,6.91,NO
+alu,IR_READY,0,4.07,NO
+arbiter,IR_READY,0,5.95,NO
+axi_lite_slave,IR_READY,0,4.44,NO
+uart_tx,IR_READY,0,5.54,NO
+fifo,IR_READY,0,4.10,NO
