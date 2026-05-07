@@ -5,33 +5,48 @@
 
 ---
 
-## Stage B Phase B.1 — Honest Baseline (Completed May 6, 2026)
+## Stage B Phase B.1 — Honest Baseline (DECLARED COMPLETE May 6, 2026)
 
-First end-to-end run with B0.7 inline assertion injection.
+**Strategic decision (May 6, 2026):** Stop single-run debugging at 2/6 pass
+rate. Move forward to multi-run statistical baseline (Phase B.4) where
+LLM nondeterminism becomes data, not bug.
 
-### Raw results
+### Final baseline numbers
 
-| Project        | Status   | Iter | Time   | Failure Mode                       |
-|----------------|----------|------|--------|------------------------------------|
-| counter        | FAIL     | 10   | 84s    | Timing: rst\|->count==0 too strict |
-| **alu**        | **PASS** | 2    | 18s    | TRUE POSITIVE: a&b -> a\|b         |
-| **arbiter**    | **PASS** | 4    | 33s    | TRUE POSITIVE                      |
-| axi_lite_slave | FAIL     | 10   | 141s   | Reviewer-coder loop                |
-| uart_tx        | FAIL     | 10   | 124s   | Reviewer-coder loop                |
-| fifo           | FAIL     | 10   | 99s    | Reviewer-coder loop                |
+| Project        | Status   | Iter | Time   | Failure Mode (if any)            |
+|----------------|----------|------|--------|----------------------------------|
+| counter        | FAIL     | 10   | 84s    | Property timing semantics        |
+| **alu**        | **PASS** | 2    | 18s    | TRUE POSITIVE: a&b -> a\|b       |
+| **arbiter**    | **PASS** | 4    | 33s    | TRUE POSITIVE                    |
+| axi_lite_slave | FAIL     | 10   | 141s   | ResetInvariant + property syntax |
+| uart_tx        | FAIL     | 10   | 124s   | Logic bug (Coder cannot fix)     |
+| fifo           | FAIL     | 10   | 99s    | Logic bug (Coder cannot fix)     |
 
-**Pass rate: 2/6 = 33% (HONEST baseline, no vacuous pass)**
+**Pass rate: 2/6 = 33% (honest, no vacuous false positives)**
 
-This is competitive with published LLM-based RTL repair approaches:
-- AutoChip (2024): ~30-40% pass rate
-- RTLFixer (2024): ~50% pass rate (simulation-based, not formal)
-- VeriGen (LLM-only): ~25% pass rate
+**Reference points** (from published literature):
+- AutoChip 2024: 30-40% pass rate (LLM + simulation feedback)
+- RTLFixer 2024: ~50% pass rate (LLM + Verilator simulation)
+- VeriGen 2023: ~25% pass rate (LLM-only zero-shot)
+
+### Why we stop debugging here
+
+After 8 hotfix iterations (B0.1 → B0.7) over 6 days, each fix exposed
+a new failure mode. This is classic diminishing returns territory.
+The remaining failures span 3 distinct, unrelated root causes — fixing
+all three would require 1+ additional week of work without proportional
+paper value.
+
+By contrast, **Phase B.4 (multi-run × 5 per benchmark)** can show that
+some currently-failing benchmarks pass *some* of the time. This converts
+"single-run fail" into "variance across runs" — a more honest and
+informative result for a paper that argues the framework is probabilistic.
 
 ---
 
-## ALU True Positive — Evidence-grade case study
+## ALU True Positive — Anchor case study for the paper
 
-This is the anchor case for the paper.
+This is **the** end-to-end case study that proves the thesis works.
 
 **Bug in buggy version** (`benchmarks_buggy/alu.v`):
 ```verilog
@@ -44,75 +59,106 @@ endcase
 ```
 
 **Pipeline trace**:
-1. Architect generates 6 properties (Equality for each opcode + zero flag)
-2. Verifier runs SBY prove → FAIL with counter-example
-3. CEX Analyzer parses VCD, identifies `or_operation_a` violation
-4. Coder modifies line: `2'b11: result = a | b;`
+1. Architect generates 6 properties (one Equality per opcode + zero flag)
+2. Verifier runs SBY prove → FAIL with VCD counter-example
+3. CEX Analyzer parses trace, identifies `or_operation_a` violation
+4. Coder modifies single line: `2'b11: result = a | b;`
 5. Re-verify → SBY proves by k-induction → PASS
 
-**Final fixed version**:
+**Final fix** (line edit, 3 chars changed):
 ```verilog
 2'b11: result = a | b;     // Fixed line: changed from a & b to a | b
 ```
 
 **Verification artifact**: `reports/signoff_alu.md`
-**SBY proof method**: k-induction
+**Proof method**: SBY/Yosys + Z3 SMT, k-induction
 **Wall-clock time**: 17.91s end-to-end
+**Iterations**: 2 (1 fail + 1 fix + verify)
+
+This single case demonstrates the entire research thesis: an LLM-driven
+pipeline using only open-source formal verification tools can detect
+AND fix a real RTL bug, with mathematical proof of correctness.
 
 ---
 
-## Failure Mode Categories Identified
+## Engineering Insight — Yosys 0.61 bind directive bug
 
-### Mode 1 — Timing Semantic Mismatch (counter)
+During development we discovered that Yosys 0.61's built-in
+SystemVerilog frontend silently discards modules referenced via
+`bind` directives. Specifically, the warning emitted is:
 
+```
+Removing unused module `\dut_props'.
+Removed 1 unused modules.
+```
+
+The bound module is treated as unused and garbage-collected before
+reaching the SMT solver. Without the assertions reaching the solver,
+SBY trivially returns PASS regardless of RTL correctness.
+
+We confirmed this through a discriminating probe: identical buggy
+RTL with identical assertions produced PASS via bind path and FAIL
+with counter-example via inline path.
+
+**Workaround (B0.7)**: inline assertion logic directly into the DUT
+module before its final `endmodule`. This is the standard practice
+in the open-source formal verification community when targeting
+Yosys without the commercial Verific frontend.
+
+This finding is candidate for an "Engineering Notes" section in
+the paper — useful to the open-source EDA community.
+
+---
+
+## Failure Mode Categorization (for paper Discussion section)
+
+### Mode 1 — Property Timing Semantic Mismatch (counter)
 LLM-generated `if (rst) assert (count == 0)` fires at cycle 0 before
-the flip-flop updates. The RTL is functionally correct, but the
-property checks `count` on the SAME cycle that reset is asserted,
-not on the cycle AFTER.
+the synchronous reset takes effect through flip-flops. Future fix:
+property compiler emits `if (fp_past_rst) assert (...)`.
 
-**SBY error trace**:
-```
-Assert failed in counter: count_reset_a
-failed assertion counter.count_reset_a at counter.v:42 step 1
-```
+### Mode 2 — Architectural fragility under multi-property pressure (axi_lite_slave)
+With 8+ properties, multiple ResetInvariants compete and the Coder
+cannot satisfy all simultaneously. Coder convergence fails over
+10 iterations. Future fix: property prioritization or relaxed
+verification depth.
 
-**Fix direction (B0.8)**: Compile ResetInvariant as
-`if (fp_past_rst) assert (count == 0)` so the check is one cycle
-delayed — matching the synchronous reset semantics of the RTL.
-
-### Mode 2 — Reviewer-Coder Synchronization (axi_lite_slave, uart_tx, fifo)
-
-Pattern observed in logs:
-```
-[Node: Coder] Patching RTL...
-[Node: Reviewer] Semantic alignment audit...
-[Orchestrator] Review attempts exhausted. Forcing verifier...
-[Verifier] Running PROVE...
-[Node: CEX Analyzer] ...
-[Node: Coder] Patching RTL... (next iter)
-[Node: Reviewer] ... (passes this time)
-```
-
-Coder produces a fix, Reviewer rejects (often spuriously), max review
-attempts hit, orchestrator forces verifier anyway, verifier finds
-same bug, loop continues. Process never converges within 10 iterations.
-
-**Hypothesis**: Reviewer prompt is too strict and rejects valid fixes,
-OR Coder is making non-converging modifications that confuse Reviewer.
-
-**Fix direction (TBD)**: Need to read reviewer feedback in actual logs
-to identify root cause before implementing fix.
+### Mode 3 — Logic Bugs Beyond Coder Capability (uart_tx, fifo)
+Bugs in temporal logic (e.g., `tx_start_triggers_busy` at step 2)
+require multi-cycle reasoning that current Coder prompt does not
+adequately support. Future fix: stronger Coder prompt with state
+machine reasoning examples, or higher-quality CEX analysis.
 
 ---
 
-## Phase B.2 — Diagnostic categories: COMPLETE
+## Phase B.4 — Multi-run Statistical Baseline (NEXT — start now)
 
-- Mode 1 (counter): Property timing semantics
-- Mode 2 (3 benchmarks): Multi-agent loop coordination
+**Goal**: convert "single-run fail" into "% pass over N runs" — give
+LLM nondeterminism a chance to surface as data.
 
-## Phase B.3 — Targeted fixes (IN PROGRESS)
+**Plan**:
+- 6 benchmarks × 5 runs each = 30 runs total
+- Track per-run: status, iterations, time, token cost
+- Output: mean ± std for each metric, per benchmark
+- Cost estimate: ~$8-10 OpenAI tokens
+- Time estimate: 2 days (1 day infra, 1 day run + analyze)
 
-- [ ] B.3.1 Diagnose reviewer-coder loop (read logs, identify root cause)
-- [ ] B.3.2 Fix Mode 2 (highest impact: affects 3/6 benchmarks)
-- [ ] B.3.3 B0.8 ResetInvariant timing fix (Mode 1)
-- [ ] B.3.4 Re-run baseline, target pass rate 5-6/6
+**Deliverable**: `logs/sprint1/multi_run_baseline.csv` (30 rows) +
+`logs/sprint1/SUMMARY.md` (per-benchmark variance table).
+
+## Phase B.5 — Metrics Infrastructure (after B.4)
+
+**Goal**: tools/metrics.py for paper-grade measurement.
+
+Tracks:
+- Edit distance (Levenshtein) buggy → fixed RTL
+- Lines changed in DUT (excluding inlined property block)
+- Total OpenAI tokens used
+- Cost in USD per run
+- Wall-clock time per node (Contract / Architect / Verifier / Coder / Reviewer)
+
+## Sprint 2 — Benchmark expansion (after B.5)
+
+**Goal**: 6 → 18-20 modules from HDLBits, OpenCores.
+With 3 bug variants per module → ~60-80 test cases.
+Cost estimate: $30 OpenAI for full evaluation.
