@@ -287,6 +287,26 @@ def architect_node(state: AgentState):
                 continue
             clean_items.append(item)
 
+        # B0.9: filter incompatible IR types based on module timing.
+        # Combinational modules cannot use timing-dependent properties.
+        module_type = contract.get("module_type", "sequential")
+        if module_type == "combinational":
+            SEQ_ONLY_TYPES = {
+                "ResetInvariant",
+                "TransitionProperty",
+                "HoldProperty",
+                "HandshakeProperty",
+            }
+            before = len(clean_items)
+            clean_items = [
+                item for item in clean_items
+                if item.get("type") not in SEQ_ONLY_TYPES
+            ]
+            dropped = before - len(clean_items)
+            if dropped > 0:
+                print(f"[Architect] B0.9: dropped {dropped} sequential-only "
+                      f"properties from combinational module.")
+
         if not clean_items:
             return {
                 "verification_status": "FATAL_ERROR",

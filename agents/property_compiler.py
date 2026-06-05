@@ -114,7 +114,8 @@ def _is_comb(prop: PropertyIR) -> bool:
     return prop.timing.kind == "combinational"
 
 
-def _emit(prop: PropertyIR) -> tuple[list[str], set[str], list[tuple[str, str]]]:
+def _emit(prop: PropertyIR, ports: dict | None = None) -> tuple[list[str], set[str], list[tuple[str, str]]]:
+    ports = ports or {}
     name = prop.name
     clk = prop.timing.clk
     rst = prop.timing.rst
@@ -134,7 +135,8 @@ def _emit(prop: PropertyIR) -> tuple[list[str], set[str], list[tuple[str, str]]]
         if comb:
             return [f"    always_comb {name}_a: assert ({body});"], set(), []
         return [
-            f"    always @(posedge {clk}) {name}_a: assert ({body});"
+            f"    always @(posedge {clk}) "
+            f"if (fp_past_valid) {name}_a: assert ({body});"
         ], set(), []
 
     if isinstance(prop, Implication):
@@ -169,7 +171,7 @@ def _emit(prop: PropertyIR) -> tuple[list[str], set[str], list[tuple[str, str]]]
             raise ValueError(f"ResetInvariant '{name}' requires sequential timing.")
         return [
             f"    always @(posedge {clk}) "
-            f"if ({rst}) {name}_a: "
+            f"if (fp_past_valid && {rst}) {name}_a: "
             f"assert ({prop.signal} == {prop.expected_value});"
         ], set(), []
 
@@ -187,6 +189,7 @@ def _emit(prop: PropertyIR) -> tuple[list[str], set[str], list[tuple[str, str]]]
             raise ValueError(f"TransitionProperty '{name}' requires sequential timing.")
         cond_expr, cond_needs = _rewrite_past_in_expr(prop.condition)
         next_expr, next_needs = _rewrite_past_in_expr(prop.next_state)
+        next_expr = _wrap_arith_width(next_expr, ports)  # B1.0
         needs = cond_needs | next_needs
         return [
             f"    always @(posedge {clk}) "
@@ -242,6 +245,27 @@ def _width_for(sig: str, ports: dict) -> int:
         a, b = int(m.group(1)), int(m.group(2))
         return abs(a - b) + 1
     return 1
+
+_TRANS_CMP_RE = re.compile(r"^\s*([A-Za-z_]\w*)\s*==\s*(.+)$")
+
+def _wrap_arith_width(expr: str, ports: dict) -> str:
+    """
+    B1.0: For transition assertions `<signal> == <arith>`, cast the RHS to
+    the signal's bit width so modular wraparound matches RTL semantics.
+    e.g. `count == fp_past_count + 1` (8-bit) -> `count == 8'(fp_past_count + 1)`.
+    Without this, `255 + 1` evaluates as 32-bit (256), never equals the
+    wrapped RTL value (0), and k-induction fails at the wrap boundary.
+    """
+    m = _TRANS_CMP_RE.match(expr)
+    if not m:
+        return expr
+    lhs, rhs = m.group(1), m.group(2).strip()
+    if not any(op in rhs for op in ("+", "-", "*")):
+        return expr
+    w = _width_for(lhs, ports)
+    if w <= 1:
+        return expr
+    return f"{lhs} == (({rhs}) & {{{w}{{1'b1}}}})"
 
 
 # ---------- B0.7: Render assertion BODY only (no module header, no bind) ----------
@@ -307,7 +331,7 @@ def _render_assertion_body(
 
     for prop in properties:
         try:
-            block_lines, p_needs, t_needs = _emit(prop)
+            block_lines, p_needs, t_needs = _emit(prop, ports)
         except ValueError as e:
             assertion_lines.append(f"    // [COMPILE_ERROR] {e}")
             assertion_lines.append(
@@ -317,7 +341,7 @@ def _render_assertion_body(
 
         # Replace `past_valid` in assertion guards with `fp_past_valid` to
         # avoid colliding with any DUT-internal signal of the same name.
-        block_lines = [ln.replace("past_valid", "fp_past_valid") for ln in block_lines]
+        block_lines = [re.sub(r"(?<!fp_)past_valid", "fp_past_valid", ln) for ln in block_lines]
         assertion_lines.extend(block_lines)
 
         cov = _emit_cover(prop)
@@ -395,7 +419,16 @@ def inject_properties_into_rtl(
     """
     if not rtl_text or "endmodule" not in rtl_text:
         raise ValueError("inject_properties_into_rtl: RTL has no `endmodule`.")
-
+    # B1.1: strip any pre-existing B0.7 block so injection is idempotent.
+    # Prevents duplicate assertion cells when re-injecting (vacuity
+    # escalation, or Coder preserving the prior block) -> Yosys rc=16.
+    rtl_text = re.sub(
+        r"[ \t]*//\s*===\s*BEGIN B0\.7 inlined formal properties\s*===.*?"
+        r"//\s*===\s*END B0\.7 inlined formal properties\s*===[ \t]*\n?",
+        "",
+        rtl_text,
+        flags=re.DOTALL,
+    )
     body = _render_assertion_body(contract, properties)
 
     # Strategy: find the LAST occurrence of `endmodule` (as a whole token)
