@@ -1,6 +1,6 @@
 # FORMAL VERIFICATION SIGNOFF REPORT
 
-**Date:** 2026-05-06 03:04:13  
+**Date:** 2026-05-06 15:52:25  
 **Project:** arbiter  
 **Status:** PASS
 
@@ -10,7 +10,7 @@
 
 This report certifies that the RTL module **arbiter** has been mathematically verified against its specification using a multi-agent AI repair framework.
 
-- **Total verifier iterations:** 4
+- **Total verifier iterations:** 3
 - **Engine:** SymbiYosys (SBY) with Z3 SMT
 - **Method:** Bounded model checking + cover-based vacuity detection
 
@@ -44,9 +44,9 @@ always_comb begin
     gnt0 = 1'b0;
     gnt1 = 1'b0;
 
-    if (req0)  // Prioritize req0 over req1
+    if (req0)
         gnt0 = 1'b1;
-    else if (req1)  // Only set gnt1 if req0 is not high
+    else if (req1)
         gnt1 = 1'b1;  
 end
 
@@ -68,12 +68,12 @@ endmodule
 
 ```
 psed clock time [H:MM:SS (secs)]: 0:00:00 (0)
-SBY  3:04:12 [arbiter_prove] summary: Elapsed process time [H:MM:SS (secs)]: 0:00:00 (0)
-SBY  3:04:12 [arbiter_prove] summary: engine_0 (smtbmc z3) returned pass for basecase
-SBY  3:04:12 [arbiter_prove] summary: engine_0 (smtbmc z3) returned pass for induction
-SBY  3:04:12 [arbiter_prove] summary: engine_0 did not produce any traces
-SBY  3:04:12 [arbiter_prove] summary: successful proof by k-induction.
-SBY  3:04:12 [arbiter_prove] DONE (PASS, rc=0)
+SBY 15:52:25 [arbiter_prove] summary: Elapsed process time [H:MM:SS (secs)]: 0:00:00 (0)
+SBY 15:52:25 [arbiter_prove] summary: engine_0 (smtbmc z3) returned pass for basecase
+SBY 15:52:25 [arbiter_prove] summary: engine_0 (smtbmc z3) returned pass for induction
+SBY 15:52:25 [arbiter_prove] summary: engine_0 did not produce any traces
+SBY 15:52:25 [arbiter_prove] summary: successful proof by k-induction.
+SBY 15:52:25 [arbiter_prove] DONE (PASS, rc=0)
 
 ```
 

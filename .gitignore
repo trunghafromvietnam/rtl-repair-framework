@@ -80,4 +80,4 @@ _patches/
 patches/
 
 # Backup paths
-.backup_path
+.backup_pathpaper/
